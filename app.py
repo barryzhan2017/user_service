@@ -172,7 +172,7 @@ def delete_users_by_id(id):
 
 
 def main():
-    app.run(debug=True, threaded=True, host='localhost', port='8000')
+    app.run(debug=True, threaded=True, host='0.0.0.0', port='80')
 
 
 if __name__ == "__main__":
