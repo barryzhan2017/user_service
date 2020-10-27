@@ -87,6 +87,10 @@ def create_select_statement(table_name):
     return """SELECT * FROM {} """.format(table_name)
 
 
+def create_select_by_id_statement(table_name, id):
+    return """SELECT * FROM {} where id = {}""".format(table_name, id)
+
+
 def create_delete_by_id_statement(table_name, id):
     return """DELETE FROM {} where id = {}""".format(table_name, id)
 
@@ -94,6 +98,23 @@ def create_delete_by_id_statement(table_name, id):
 @app.route('/users', methods=['GET'])
 def query_users():
     sql = create_select_statement(user_table_name)
+    conn = pymysql.connect(**c_info)
+    with conn.cursor() as cursor:
+        try:
+            cursor.execute(sql)
+            rsp = Response(json.dumps(cursor.fetchall()), status=200, content_type="application/json")
+            return rsp
+        except (pymysql.Error, pymysql.Warning) as e:
+            logger.error(e)
+            rsp = Response("Internal Server Error", status=500, content_type="application/json")
+            return rsp
+        finally:
+            conn.close()
+
+
+@app.route('/users/<id>', methods=['GET'])
+def query_user_by_id(id):
+    sql = create_select_by_id_statement(user_table_name, id)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
