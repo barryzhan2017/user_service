@@ -79,7 +79,7 @@ def create_update_by_id_statement(table_name, parameters, data, id):
             else:
                 sql += """{} = "{}", """.format(parameter, data[parameter])
     sql = sql[:-2]
-    sql += """ where id = {}""".format(id)
+    sql += """ where user_id = {}""".format(id)
     return sql
 
 
@@ -88,11 +88,11 @@ def create_select_statement(table_name):
 
 
 def create_select_by_id_statement(table_name, id):
-    return """SELECT * FROM {} where id = {}""".format(table_name, id)
+    return """SELECT * FROM {} where user_id = {}""".format(table_name, id)
 
 
 def create_delete_by_id_statement(table_name, id):
-    return """DELETE FROM {} where id = {}""".format(table_name, id)
+    return """DELETE FROM {} where user_id = {}""".format(table_name, id)
 
 
 @app.route('/users', methods=['GET'])
