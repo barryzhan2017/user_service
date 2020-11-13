@@ -2,13 +2,19 @@ from flask import Flask, request, Response
 import pymysql
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from passlib.hash import sha256_crypt
+import jwt
 
 app = Flask(__name__)
 
 logger = logging.getLogger()
+
+jwt_secret = os.environ['jwt_secret']
+jwt_algo = 'HS256'
+jwt_exp_delta_sec = 1000
+
 c_info = {
     "host": os.environ['rds_host'],
     "user": os.environ['rds_user'],
@@ -21,6 +27,7 @@ user_fields = ["username", "password", "email", "phone",
                "slack_id", "role", "created_date"]
 
 
+# Get each field from request
 def log_and_extract_input(path_params=None):
     path = request.path
     args = dict(request.args)
@@ -49,6 +56,7 @@ def log_and_extract_input(path_params=None):
     return inputs
 
 
+# Create a sql statement to insert data according to parameters into a table by its table_name
 def create_insert_statement(table_name, parameters, data):
     if not parameters:
         return ""
@@ -67,6 +75,7 @@ def create_insert_statement(table_name, parameters, data):
     return sql
 
 
+# Create a sql statement to update a row by its id and table_name with data and its parameters
 def create_update_by_id_statement(table_name, parameters, data, id):
     if not parameters:
         return ""
@@ -95,6 +104,73 @@ def create_delete_by_id_statement(table_name, id):
     return """DELETE FROM {} where user_id = {}""".format(table_name, id)
 
 
+def create_select_by_username_statement(table_name, username):
+    return """SELECT * FROM {} where username = {}""".format(table_name, username)
+
+
+# Create error response by error message string and its status code
+def create_error_res(error_msg, code):
+    return Response(json.dumps({"message": error_msg}),
+                    status=code, content_type="application/json")
+
+
+# Create successful response by its json payload and status code
+def create_res(json_msg, code):
+    return Response(json.dumps(json_msg),
+                    status=code, content_type="application/json")
+
+
+# Authorization check. If it's for login, go ahead. The other request can only be done by support role
+@app.before_request
+def authorization():
+    inputs = log_and_extract_input()
+    # Return None will handle the request to the actual method
+    if inputs["path"] == "/login":
+        return None
+    header = inputs["headers"]
+    if "authorization" not in header:
+        return create_error_res("Not authenticated", 400)
+    jwt_token = inputs["authorization"]
+    try:
+        payload = jwt.decode(jwt_token, jwt_secret,
+                             algorithms=[jwt_algo])
+        if payload["role"] != "support":
+            return create_error_res("Permission Denied", 403)
+    except (jwt.DecodeError, jwt.ExpiredSignatureError):
+        return create_error_res("Token is invalid", 400)
+
+
+# Login endpoint for users. If successful, add their id and role into JWT and send back to client
+@app.route('/login', methods=['POST'])
+def login():
+    inputs = log_and_extract_input()
+    data = inputs["body"]
+    if "user_name" not in data or "password" not in data:
+        return create_error_res("Username or password is empty", 400)
+    sql = create_select_by_username_statement(user_table_name, data["username"])
+    conn = pymysql.connect(**c_info)
+    with conn.cursor() as cursor:
+        try:
+            user = cursor.execute(sql)
+            if sha256_crypt.encrypt(data["password"]) == user["password"]:
+                payload = {
+                    "user_id": user["id"],
+                    "role": user["role"],
+                    "exp": datetime.utcnow() + timedelta(seconds=jwt_exp_delta_sec)
+                }
+                jwt_token = jwt.encode(payload, jwt_secret, jwt_algo)
+                return create_res({"token": jwt_token,
+                                   "message": "Login successfully"}, 200)
+            else:
+                return create_error_res("Password is incorrect", 400)
+        except (pymysql.Error, pymysql.Warning) as e:
+            logger.error(e)
+            return create_error_res("Internal Server Error", 500)
+        finally:
+            conn.close()
+
+
+# Endpoint to query all users
 @app.route('/users', methods=['GET'])
 def query_users():
     sql = create_select_statement(user_table_name)
@@ -102,16 +178,15 @@ def query_users():
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
-            rsp = Response(json.dumps(cursor.fetchall()), status=200, content_type="application/json")
-            return rsp
+            return create_res({"data": cursor.fetchall(), "message": "Query successfully"}, 200)
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
-            rsp = Response("Internal Server Error", status=500, content_type="application/json")
-            return rsp
+            return create_error_res("Internal Server Error", 500)
         finally:
             conn.close()
 
 
+# Endpoint to query a user by its id
 @app.route('/users/<id>', methods=['GET'])
 def query_user_by_id(id):
     sql = create_select_by_id_statement(user_table_name, id)
@@ -119,16 +194,15 @@ def query_user_by_id(id):
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
-            rsp = Response(json.dumps(cursor.fetchall()), status=200, content_type="application/json")
-            return rsp
+            return create_res({"data": cursor.fetchall(), "message": "Query successfully"}, 200)
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
-            rsp = Response("Internal Server Error", status=500, content_type="application/json")
-            return rsp
+            return create_error_res("Internal Server Error", 500)
         finally:
             conn.close()
 
 
+# Create a new user and its password is hashed
 @app.route('/users', methods=['POST'])
 def create_user():
     inputs = log_and_extract_input()
@@ -140,40 +214,37 @@ def create_user():
         try:
             cursor.execute(sql)
             conn.commit()
-            rsp = Response("Create Successfully", status=200, content_type="application/json")
-            return rsp
+            return create_res({"message": "Create successfully"}, 200)
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
             conn.rollback()
-            rsp = Response("Internal Server Error", status=500, content_type="application/json")
-            return rsp
+            return create_error_res("Internal Server Error", 500)
         finally:
             conn.close()
 
 
+# Update a existing user by its id. Hash the password if updated
 @app.route('/users/<id>', methods=['PUT'])
 def update_users_by_id(id):
     inputs = log_and_extract_input()
     data = inputs["body"]
     sql = create_update_by_id_statement(user_table_name, user_fields, data, id)
     if not sql:
-        rsp = Response("Nothing to Update", status=200, content_type="application/json")
-        return rsp
+        return create_res({"message": "Nothing to update"}, 200)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
             conn.commit()
-            rsp = Response("Successful Update", status=200, content_type="application/json")
-            return rsp
+            return create_res({"message": "Update successfully"}, 200)
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
-            rsp = Response("Internal Server Error", status=500, content_type="application/json")
-            return rsp
+            return create_error_res("Internal Server Error", 500)
         finally:
             conn.close()
 
 
+# Delete a user by its id
 @app.route('/users/<id>', methods=['DELETE'])
 def delete_users_by_id(id):
     sql = create_delete_by_id_statement(user_table_name, id)
@@ -182,12 +253,10 @@ def delete_users_by_id(id):
         try:
             cursor.execute(sql)
             conn.commit()
-            rsp = Response("Successful Delete", status=200, content_type="application/json")
-            return rsp
+            return create_res({"message": "Delete successfully"}, 200)
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
-            rsp = Response("Internal Server Error", status=500, content_type="application/json")
-            return rsp
+            return create_error_res("Internal Server Error", 500)
         finally:
             conn.close()
 
