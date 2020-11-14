@@ -11,18 +11,19 @@ app = Flask(__name__)
 
 logger = logging.getLogger()
 
-jwt_secret = os.environ['jwt_secret']
-jwt_algo = 'HS256'
-jwt_exp_delta_sec = 1000
+jwt_secret = os.environ['JWT_SECRET']
+jwt_algo = os.environ['JWT_ALGO']
+jwt_exp_delta_sec = float(os.environ['JWT_EXP'])
 
 c_info = {
-    "host": os.environ['rds_host'],
-    "user": os.environ['rds_user'],
-    "password": os.environ['rds_password'],
+    "host": os.environ['USER_SERVICE_HOST'],
+    "user": os.environ['USER_SERVICE_USER'],
+    "password": os.environ['USER_SERVICE_PASSWORD'],
+    "port": int(os.environ["USER_SERVICE_PORT"]),
     "cursorclass": pymysql.cursors.DictCursor,
 }
 
-user_table_name = "user_service.users"
+user_table_name = "signals.users"
 user_fields = ["username", "password", "email", "phone",
                "slack_id", "role", "created_date"]
 
@@ -60,18 +61,18 @@ def log_and_extract_input(path_params=None):
 def create_insert_statement(table_name, parameters, data):
     if not parameters:
         return ""
-    sql = """Insert Into {} ({}) """.format(table_name, ', '.join(user_fields))
-    sql += """ Values ("""
+    sql = """INSERT INTO {} ({}) """.format(table_name, ', '.join(user_fields))
+    sql += """ VALUES ("""
     for parameter in parameters:
         # Suppose every parameter is a string
         if parameter != "created_date" and parameter in data:
             if parameter == "password":
                 # Encrypt password
-                sql += """'{}', """.format(sha256_crypt.encrypt(data[parameter]))
+                sql += """'{}', """.format(sha256_crypt.hash(data[parameter]))
             else:
                 sql += """'{}', """.format(data[parameter])
     # Handle case for created_date
-    sql += """'{}')""".format(datetime.now().strftime("%A, %d. %B %Y %I:%M"))
+    sql += """'{}')""".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     return sql
 
 
@@ -79,16 +80,16 @@ def create_insert_statement(table_name, parameters, data):
 def create_update_by_id_statement(table_name, parameters, data, id):
     if not parameters:
         return ""
-    sql = """UPDATE {} set """.format(table_name)
+    sql = """UPDATE {} SET """.format(table_name)
     for parameter in parameters:
         if parameter in data:
             if parameter == "password":
                 # Encrypt password
-                sql += """{} = "{}", """.format(parameter, sha256_crypt.encrypt(data[parameter]))
+                sql += """{} = "{}", """.format(parameter, sha256_crypt.hash(data[parameter]))
             else:
                 sql += """{} = "{}", """.format(parameter, data[parameter])
     sql = sql[:-2]
-    sql += """ where user_id = {}""".format(id)
+    sql += """ WHERE user_id = {}""".format(id)
     return sql
 
 
@@ -97,15 +98,15 @@ def create_select_statement(table_name):
 
 
 def create_select_by_id_statement(table_name, id):
-    return """SELECT * FROM {} where user_id = {}""".format(table_name, id)
+    return """SELECT * FROM {} WHERE user_id = {}""".format(table_name, id)
 
 
 def create_delete_by_id_statement(table_name, id):
-    return """DELETE FROM {} where user_id = {}""".format(table_name, id)
+    return """DELETE FROM {} WHERE user_id = {}""".format(table_name, id)
 
 
 def create_select_by_username_statement(table_name, username):
-    return """SELECT * FROM {} where username = {}""".format(table_name, username)
+    return """SELECT * FROM {} WHERE username = "{}" """.format(table_name, username)
 
 
 # Create error response by error message string and its status code
@@ -116,7 +117,7 @@ def create_error_res(error_msg, code):
 
 # Create successful response by its json payload and status code
 def create_res(json_msg, code):
-    return Response(json.dumps(json_msg),
+    return Response(json.dumps(json_msg, default=str),
                     status=code, content_type="application/json")
 
 
@@ -128,12 +129,17 @@ def authorization():
     if inputs["path"] == "/login":
         return None
     header = inputs["headers"]
-    if "authorization" not in header:
+    print(header)
+    if "Authorization" not in header:
         return create_error_res("Not authenticated", 400)
-    jwt_token = inputs["authorization"]
+    jwt_token = header["Authorization"]
+    # For bearer token, remove the bearer part
+    if jwt_token.startswith("Bearer "):
+        jwt_token = jwt_token[7:]
     try:
         payload = jwt.decode(jwt_token, jwt_secret,
                              algorithms=[jwt_algo])
+        print(payload)
         if payload["role"] != "support":
             return create_error_res("Permission Denied", 403)
     except (jwt.DecodeError, jwt.ExpiredSignatureError):
@@ -145,21 +151,22 @@ def authorization():
 def login():
     inputs = log_and_extract_input()
     data = inputs["body"]
-    if "user_name" not in data or "password" not in data:
+    if "username" not in data or "password" not in data:
         return create_error_res("Username or password is empty", 400)
     sql = create_select_by_username_statement(user_table_name, data["username"])
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
-            user = cursor.execute(sql)
-            if sha256_crypt.encrypt(data["password"]) == user["password"]:
+            cursor.execute(sql)
+            user = cursor.fetchall()[0]
+            if sha256_crypt.verify(data["password"], user["password"]):
                 payload = {
-                    "user_id": user["id"],
+                    "user_id": user["user_id"],
                     "role": user["role"],
                     "exp": datetime.utcnow() + timedelta(seconds=jwt_exp_delta_sec)
                 }
                 jwt_token = jwt.encode(payload, jwt_secret, jwt_algo)
-                return create_res({"token": jwt_token,
+                return create_res({"token": jwt_token.decode('utf-8'),
                                    "message": "Login successfully"}, 200)
             else:
                 return create_error_res("Password is incorrect", 400)
@@ -209,7 +216,6 @@ def create_user():
     data = inputs["body"]
     sql = create_insert_statement(user_table_name, user_fields, data)
     conn = pymysql.connect(**c_info)
-    print(sql)
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
