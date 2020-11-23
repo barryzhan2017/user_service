@@ -53,13 +53,12 @@ def log_and_extract_input(path_params=None):
         "headers": headers,
         "body": data
     }
-
     return inputs
 
 
 # Create a sql statement to insert data according to parameters into a table by its table_name
 def create_insert_statement(table_name, parameters, data):
-    if not parameters:
+    if data is None or len(data) == 0:
         return ""
     sql = """INSERT INTO {} ({}) """.format(table_name, ', '.join(user_fields))
     sql += """ VALUES ("""
@@ -78,7 +77,7 @@ def create_insert_statement(table_name, parameters, data):
 
 # Create a sql statement to update a row by its id and table_name with data and its parameters
 def create_update_by_id_statement(table_name, parameters, data, id):
-    if not parameters:
+    if data is None or len(data) == 0:
         return ""
     sql = """UPDATE {} SET """.format(table_name)
     for parameter in parameters:
@@ -93,8 +92,17 @@ def create_update_by_id_statement(table_name, parameters, data, id):
     return sql
 
 
-def create_select_statement(table_name):
-    return """SELECT * FROM {} """.format(table_name)
+def create_select_statement(table_name, parameters, data):
+    # Select all
+    sql = """SELECT * FROM {} """.format(table_name)
+    if data is None or len(data) == 0:
+        return sql
+    sql += "WHERE "
+    for parameter in parameters:
+        if parameter in data:
+            sql += """{} = "{}", """.format(parameter, data[parameter])
+    sql = sql[:-2]
+    return sql
 
 
 def create_select_by_id_statement(table_name, id):
@@ -121,12 +129,31 @@ def create_res(json_msg, code):
                     status=code, content_type="application/json")
 
 
+# Check if there is a duplicate username
+def is_duplicate_username(username):
+    sql = create_select_by_username_statement(user_table_name, username)
+    conn = pymysql.connect(**c_info)
+    with conn.cursor() as cursor:
+        try:
+            cursor.execute(sql)
+            users = cursor.fetchall()[0]
+            if len(users) != 0:
+                return False
+        except (pymysql.Error, pymysql.Warning) as e:
+            logger.error(e)
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+    return True
+
+
 # Authorization check. If it's for login, go ahead. The other request can only be done by support role
 @app.before_request
 def authorization():
     inputs = log_and_extract_input()
     # Return None will handle the request to the actual method
-    if inputs["path"] == "/login":
+    if inputs["path"] == "/api/login":
         return None
     header = inputs["headers"]
     print(header)
@@ -147,7 +174,7 @@ def authorization():
 
 
 # Login endpoint for users. If successful, add their id and role into JWT and send back to client
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
     inputs = log_and_extract_input()
     data = inputs["body"]
@@ -158,7 +185,10 @@ def login():
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
-            user = cursor.fetchall()[0]
+            users = cursor.fetchall()
+            if len(users) == 0:
+                return create_error_res("Username does not exist", 400)
+            user = users[0]
             if sha256_crypt.verify(data["password"], user["password"]):
                 payload = {
                     "user_id": user["user_id"],
@@ -177,10 +207,12 @@ def login():
             conn.close()
 
 
-# Endpoint to query all users
-@app.route('/users', methods=['GET'])
+# Endpoint to query users, we can pass query string in path
+@app.route('/api/users', methods=['GET'])
 def query_users():
-    sql = create_select_statement(user_table_name)
+    inputs = log_and_extract_input()
+    data = inputs["query_params"]
+    sql = create_select_statement(user_table_name, user_fields, data)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
@@ -194,7 +226,7 @@ def query_users():
 
 
 # Endpoint to query a user by its id
-@app.route('/users/<id>', methods=['GET'])
+@app.route('/api/users/<id>', methods=['GET'])
 def query_user_by_id(id):
     sql = create_select_by_id_statement(user_table_name, id)
     conn = pymysql.connect(**c_info)
@@ -210,10 +242,12 @@ def query_user_by_id(id):
 
 
 # Create a new user and its password is hashed
-@app.route('/users', methods=['POST'])
+@app.route('/api/users', methods=['POST'])
 def create_user():
     inputs = log_and_extract_input()
     data = inputs["body"]
+    if not ("username" in data and is_duplicate_username(data["username"])):
+        return create_error_res("Username is duplicate", 400)
     sql = create_insert_statement(user_table_name, user_fields, data)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
@@ -230,10 +264,12 @@ def create_user():
 
 
 # Update a existing user by its id. Hash the password if updated
-@app.route('/users/<id>', methods=['PUT'])
+@app.route('/api/users/<id>', methods=['PUT'])
 def update_users_by_id(id):
     inputs = log_and_extract_input()
     data = inputs["body"]
+    if "username" in data and is_duplicate_username(data["username"]):
+        return create_error_res("Username is duplicate", 400)
     sql = create_update_by_id_statement(user_table_name, user_fields, data, id)
     if not sql:
         return create_res({"message": "Nothing to update"}, 200)
@@ -251,7 +287,7 @@ def update_users_by_id(id):
 
 
 # Delete a user by its id
-@app.route('/users/<id>', methods=['DELETE'])
+@app.route('/api/users/<id>', methods=['DELETE'])
 def delete_users_by_id(id):
     sql = create_delete_by_id_statement(user_table_name, id)
     conn = pymysql.connect(**c_info)
