@@ -27,7 +27,6 @@ user_table_name = "signals.users"
 user_fields = ["username", "password", "email", "phone",
                "slack_id", "role", "created_date"]
 
-
 # Get each field from request
 def log_and_extract_input(path_params=None):
     path = request.path
@@ -53,6 +52,7 @@ def log_and_extract_input(path_params=None):
         "headers": headers,
         "body": data
     }
+    print(inputs)
     return inputs
 
 
@@ -136,7 +136,7 @@ def is_duplicate_username(username):
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
-            users = cursor.fetchall()[0]
+            users = cursor.fetchall()
             if len(users) != 0:
                 return False
         except (pymysql.Error, pymysql.Warning) as e:
@@ -246,6 +246,9 @@ def query_user_by_id(id):
 def create_user():
     inputs = log_and_extract_input()
     data = inputs["body"]
+    contain_none = not all(data.values())
+    if contain_none:
+        return create_error_res("Contains none value in data", 400)
     if not ("username" in data and is_duplicate_username(data["username"])):
         return create_error_res("Username is duplicate", 400)
     sql = create_insert_statement(user_table_name, user_fields, data)
@@ -268,6 +271,9 @@ def create_user():
 def update_users_by_id(id):
     inputs = log_and_extract_input()
     data = inputs["body"]
+    contain_none = not all(data.values())
+    if contain_none:
+        return create_error_res("Contains none value in data", 400)
     if "username" in data and is_duplicate_username(data["username"]):
         return create_error_res("Username is duplicate", 400)
     sql = create_update_by_id_statement(user_table_name, user_fields, data, id)
