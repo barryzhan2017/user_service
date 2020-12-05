@@ -170,7 +170,7 @@ def authorization():
         if payload["role"] != "support":
             return create_error_res("Permission Denied", 403)
     except (jwt.DecodeError, jwt.ExpiredSignatureError):
-        return create_error_res("Token is invalid", 400)
+        return create_error_res("Token is invalid", 401)
 
 
 # Login endpoint for users. If successful, add their id and role into JWT and send back to client
