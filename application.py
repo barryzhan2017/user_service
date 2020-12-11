@@ -1,19 +1,16 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, session
 import pymysql
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 from passlib.hash import sha256_crypt
-import jwt
+import middleware.security as security
 
 application = Flask(__name__)
 app = application
 logger = logging.getLogger()
-
-jwt_secret = os.environ['JWT_SECRET']
-jwt_algo = os.environ['JWT_ALGO']
-jwt_exp_delta_sec = float(os.environ['JWT_EXP'])
+app.secret_key = os.urandom(24)
 
 c_info = {
     "host": os.environ['USER_SERVICE_HOST'],
@@ -25,7 +22,8 @@ c_info = {
 
 user_table_name = "signals.users"
 user_fields = ["username", "password", "email", "phone",
-               "slack_id", "role", "created_date"]
+               "slack_id", "role", "created_date", "status", "address"]
+
 
 # Get each field from request
 def log_and_extract_input(path_params=None):
@@ -148,29 +146,22 @@ def is_duplicate_username(username):
     return True
 
 
-# Authorization check. If it's for login, go ahead. The other request can only be done by support role
+# Authorization check. If it's for login, go ahead by returning none. The other request can only be done by support role
 @app.before_request
 def authorization():
     inputs = log_and_extract_input()
-    # Return None will handle the request to the actual method
-    if inputs["path"] == "/api/login":
+    res = security.authorize(inputs, "support")
+    # Pass through while_list without any action
+    if not res:
         return None
-    header = inputs["headers"]
-    print(header)
-    if "Authorization" not in header:
-        return create_error_res("Not authenticated", 400)
-    jwt_token = header["Authorization"]
-    # For bearer token, remove the bearer part
-    if jwt_token.startswith("Bearer "):
-        jwt_token = jwt_token[7:]
-    try:
-        payload = jwt.decode(jwt_token, jwt_secret,
-                             algorithms=[jwt_algo])
-        print(payload)
-        if payload["role"] != "support":
-            return create_error_res("Permission Denied", 403)
-    except (jwt.DecodeError, jwt.ExpiredSignatureError):
-        return create_error_res("Token is invalid", 401)
+    # Add authenticated user to session, note we need to have a secret key for app to use session
+    if res[1] == 200:
+        session["user_id"] = res[0]["user_id"]
+        session["role"] = res[0]["role"]
+        session["email"] = res[0]["email"]
+        return None
+    else:
+        return create_error_res(res[0], res[1])
 
 
 # Login endpoint for users. If successful, add their id and role into JWT and send back to client
@@ -190,13 +181,7 @@ def login():
                 return create_error_res("Username does not exist", 400)
             user = users[0]
             if sha256_crypt.verify(data["password"], user["password"]):
-                payload = {
-                    "user_id": user["user_id"],
-                    "role": user["role"],
-                    "exp": datetime.utcnow() + timedelta(seconds=jwt_exp_delta_sec)
-                }
-                jwt_token = jwt.encode(payload, jwt_secret, jwt_algo)
-                return create_res({"token": jwt_token.decode('utf-8'),
+                return create_res({"token": security.create_token(user),
                                    "message": "Login successfully"}, 200)
             else:
                 return create_error_res("Password is incorrect", 400)
@@ -311,5 +296,3 @@ def delete_users_by_id(id):
 
 if __name__ == '__main__':
     application.run(debug=True, port=8080)
-
-
