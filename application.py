@@ -7,8 +7,8 @@ import os
 from passlib.hash import sha256_crypt
 import jwt
 
-app = Flask(__name__)
-
+application = Flask(__name__)
+app = application
 logger = logging.getLogger()
 
 jwt_secret = os.environ['JWT_SECRET']
@@ -309,9 +309,7 @@ def delete_users_by_id(id):
             conn.close()
 
 
-def main():
-    app.run(debug=True, threaded=True, host='0.0.0.0', port='80')
+if __name__ == '__main__':
+    application.run(debug=True, port=8080)
 
 
-if __name__ == "__main__":
-    main()
