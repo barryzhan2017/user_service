@@ -101,7 +101,7 @@ def login():
         return create_error_res("Username does not exist", 400)
     queried_user = users[0]
     if sha256_crypt.verify(user["password"], queried_user["password"]):
-        if queried_user["status"] == "inactive":
+        if queried_user["status"] != "active":
             return create_error_res("User is not activated via email", 400)
         return create_res({"token": security.create_token(queried_user),
                            "message": "Login successfully"}, 200)
