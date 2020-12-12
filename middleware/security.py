@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 
-while_list = {"/api/login"}
+while_list = {"/api/login", "/api/registration"}
 
 jwt_secret = os.environ['JWT_SECRET']
 jwt_algo = os.environ['JWT_ALGO']

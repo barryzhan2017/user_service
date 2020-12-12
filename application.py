@@ -74,10 +74,10 @@ def authorization():
 
 # Notify after request
 @app.after_request
-def notify(rsp):
+def notify(response):
     inputs = log_and_extract_input()
-    notification.notify(inputs, rsp)
-    return rsp
+    notification.notify(inputs, response)
+    return response
 
 
 # Registration endpoint for users. If successful, send sns to ask for email verification
@@ -135,15 +135,17 @@ def query_user_by_id(user_id):
 def create_user():
     inputs = log_and_extract_input()
     user = inputs["body"]
+    if not user_access.required_field_exist(user):
+        return create_error_res("Some fields are missing", 400)
     if not user or not all(user.values()):
         return create_error_res("Invalid data", 400)
-    if not ("username" in user and user_access.is_duplicate_username(user["username"])):
+    if "username" in user and user_access.is_duplicate_username(user["username"]):
         return create_error_res("Username is duplicate", 400)
     created_user = user_access.create_user(user)
     if not created_user:
         return create_error_res("Internal Server Error", 500)
     else:
-        return create_res({"message": "Create successfully"}, 201)
+        return create_res({"data": created_user, "message": "Create successfully"}, 201)
 
 
 # Update a existing user by its id. Hash the password if updated
@@ -153,14 +155,13 @@ def update_users_by_id(id):
     user = inputs["body"]
     if not user or not all(user.values()):
         return create_error_res("Invalid data", 400)
-    print(user["username"])
     if "username" in user and user_access.is_duplicate_username(user["username"]):
         return create_error_res("Username is duplicate", 400)
     updated_user = user_access.update_users_by_id(user, id)
     if not updated_user:
         return create_error_res("Internal Server Error", 500)
     else:
-        return create_res({"message": "Update successfully"}, 200)
+        return create_res({"data": user, "message": "Update successfully"}, 200)
 
 
 # Delete a user by its id

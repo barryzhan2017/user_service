@@ -18,6 +18,8 @@ user_table_name = "signals.users"
 # date should be the last one
 user_fields = ["username", "password", "email", "phone",
                "slack_id", "role", "status", "address", "created_date"]
+required_user_fields = ["username", "password", "email", "phone",
+                        "slack_id", "role", "status", "address"]
 
 
 # Create a sql statement to insert data according to parameters into a table by its table_name
@@ -90,16 +92,22 @@ def is_duplicate_username(username):
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
             conn.rollback()
-            return False
+            return True
         finally:
             conn.close()
     return False
+
+# Check if all fields required are in user
+def required_field_exist(user):
+    for field in required_user_fields:
+        if field not in user:
+            return False
+    return True
 
 
 # Endpoint to query users from a given user dictionary
 def query_users(user):
     sql = create_select_statement(user_table_name, user_fields, user)
-    print(sql)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
