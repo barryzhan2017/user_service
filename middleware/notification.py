@@ -18,10 +18,10 @@ filters = {
 def notify(inputs, response):
     filter = filters.get(inputs["path"], None)
     print(response.status_code)
-    user = json.loads(response.data.decode("utf-8"))["data"][0]
     # Successful request will notify vai sns
     if filter is not None and response.status_code == filter["status"]:
         if inputs["method"] in filter["method"]:
+            user = json.loads(response.data.decode("utf-8"))["data"][0]
             event = {
                 "resource": inputs["path"],
                 "method": inputs["method"],
