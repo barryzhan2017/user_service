@@ -2,8 +2,8 @@ import boto3
 import os
 import json
 
-# Create an SNS client
-sns = boto3.client('sns')
+# Create an SNS client, Must specify region
+sns = boto3.client('sns', region_name='us-east-2')
 
 filters = {
     "/api/registration": {
@@ -25,7 +25,7 @@ def notify(inputs, response):
             event = {
                 "resource": inputs["path"],
                 "method": inputs["method"],
-                "data": {"user_id": user["user_id"], "username": user["username"], "email": user["email"]}
+                "data": {"user_id": user["user_id"], "role": user["role"], "email": user["email"]}
             }
             print(event)
             message = json.dumps(event, default=str)
