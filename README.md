@@ -14,5 +14,7 @@ request to this service. Main problems I met:
   * Requests module requires additional modules, like chardet, certifi and idna module
   * Permission to publish sns should be added to elastic beanstalk role 
     (although local can access sns).
+  * We need request removal from sandbox of our sns account to send emails to unlimited address.
+  Under sending statistics, click edit account details to achieve that.
     
 
