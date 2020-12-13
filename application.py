@@ -95,9 +95,7 @@ def login():
     if "username" not in user or "password" not in user:
         return create_error_res("Username or password is empty", 400)
     users = user_access.query_users({"username": user["username"]})
-    if not users:
-        return create_error_res("Internal Server Error", 500)
-    if len(users) == 0:
+    if not users or len(users) == 0:
         return create_error_res("Username does not exist", 400)
     queried_user = users[0]
     if sha256_crypt.verify(user["password"], queried_user["password"]):
