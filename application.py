@@ -3,9 +3,10 @@ import json
 import logging
 import os
 from passlib.hash import sha256_crypt
-import middleware.security as security
-import middleware.notification as notification
+import middlewares.security as security
+import middlewares.notification as notification
 import database_access.user_access as user_access
+import tools.address_verification as address_verification
 
 application = Flask(__name__)
 app = application
@@ -136,10 +137,14 @@ def create_user():
     user = inputs["body"]
     if not user_access.required_field_exist(user):
         return create_error_res("Some fields are missing", 400)
+    # Check all the fields are not none
     if not user or not all(user.values()):
         return create_error_res("Invalid data", 400)
-    if "username" in user and user_access.is_duplicate_username(user["username"]):
+    if user_access.is_duplicate_username(user["username"]):
         return create_error_res("Username is duplicate", 400)
+    # Check if the address is valid
+    if not address_verification.verify(user["address"]):
+        return create_error_res("Address is invalid", 400)
     created_user = user_access.create_user(user)
     if not created_user:
         return create_error_res("Internal Server Error", 500)

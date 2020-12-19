@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 
-while_list = {"/api/login", "/api/registration"}
+white_list = {"/api/login", "/api/registration"}
 
 jwt_secret = os.environ['JWT_SECRET']
 jwt_algo = os.environ['JWT_ALGO']
@@ -16,7 +16,7 @@ jwt_exp_delta_sec = float(os.environ['JWT_EXP'])
 # For success, return payload which is a map like {"user_id": "123", "role": "ip", "email": "dada@dad.com"}
 # and 200 status code
 def authorize(inputs, roles):
-    if inputs["path"] in while_list:
+    if inputs["path"] in white_list:
         return None
     header = inputs["headers"]
     print(header)
