@@ -1,4 +1,4 @@
-from flask import Flask, request, Response, session
+from flask import Flask, request, Response, session, url_for, redirect
 import json
 import logging
 import os
@@ -7,12 +7,26 @@ import middlewares.security as security
 import middlewares.notification as notification
 import database_access.user_access as user_access
 import tools.address_verification as address_verification
+from authlib.integrations.flask_client import OAuth
+from authlib.integrations.base_client.errors import OAuthError
 
 application = Flask(__name__)
+catalog_url = "http://signaldevv20-env.eba-2ibxmk54.us-east-2.elasticbeanstalk.com/"
 app = application
 logger = logging.getLogger()
 app.secret_key = os.urandom(24)
-
+oauth = OAuth(app)
+google = oauth.register(
+    name="google",
+    client_id="711339593947-sk8i9o5idime6plukhelrvfqs85vh57p.apps.googleusercontent.com",
+    client_secret="vJ3nNv_KrZAITd3rNlQ4DIxC",
+    access_token_url="https://accounts.google.com/o/oauth2/token",
+    access_token_params=None,
+    authorize_url="https://accounts.google.com/o/oauth2/auth",
+    authorize_params=None,
+    api_base_url="https://www.googleapis.com/oauth2/v1/",
+    client_kwargs={"scope": "openid profile email"}
+)
 
 # Get each field from request
 def log_and_extract_input(path_params=None):
@@ -107,6 +121,36 @@ def login():
     else:
         return create_error_res("Password is incorrect", 400)
 
+# Login endpoint for goolge users. If successful, it will redirect to g_authorize for further user information.
+@app.route("/api/g_login", methods=['GET'])
+def g_login():
+    google = oauth.create_client("google")  # create the google oauth client
+    redirect_uri = url_for("g_authorize", _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+# Access the user_info and if that email does not exist, we will create a new user based on that email.
+@app.route("/api/g_authorize")
+def g_authorize():
+    google = oauth.create_client("google")  # create the google oauth client
+    # Use code passed in query parameter to find token and then use token to get user info
+    if "code" not in request.args:
+        return create_error_res("Not authorized google user", 400)
+    try:
+        token = google.authorize_access_token()  # Access token from google (needed to get user info)
+    except OAuthError:
+        return create_error_res("Invalid google code", 401)
+    resp = google.get("userinfo", token=token)  # userinfo contains stuff u specificed in the scrope
+    user_info = resp.json()
+    email = user_info["email"]
+    # If there does not exist a duplicate user with such email, create a new one
+    if not user_access.exist_duplicate_user_with_field({"email": email}):
+        created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"})
+        if not created_user:
+            return create_error_res("Internal Server Error", 500)
+    user = user_access.query_users({"email": email})
+    print(user)
+    return redirect("/api/login")
+
 
 # Endpoint to query users, we can pass query string in path
 @app.route('/api/users', methods=['GET'])
@@ -140,10 +184,10 @@ def create_user():
     # Check all the fields are not none
     if not user or not all(user.values()):
         return create_error_res("Invalid data", 400)
-    if user_access.is_duplicate_username(user["username"]):
+    if user_access.exist_duplicate_user_with_field({"username": user["username"]}):
         return create_error_res("Username is duplicate", 400)
     # Check if the address is valid
-    if not address_verification.verify(user["address"]):
+    if "address" in user and not address_verification.verify(user["address"]):
         return create_error_res("Address is invalid", 400)
     created_user = user_access.create_user(user)
     if not created_user:
@@ -159,7 +203,7 @@ def update_users_by_id(id):
     user = inputs["body"]
     if not user or not all(user.values()):
         return create_error_res("Invalid data", 400)
-    if "username" in user and user_access.is_duplicate_username(user["username"]):
+    if "username" in user and user_access.exist_duplicate_user_with_field({"username": user["username"]}):
         return create_error_res("Username is duplicate", 400)
     updated_user = user_access.update_users_by_id(user, id)
     if not updated_user:

@@ -66,7 +66,7 @@ def create_select_statement(table_name, parameters, data):
     sql += "WHERE "
     for parameter in parameters:
         if parameter in data:
-            sql += """{} = "{}" AND """.format(parameter, data[parameter])
+            sql += """ {} = "{}" AND """.format(parameter, data[parameter])
     sql = sql[:-4]
     return sql
 
@@ -80,8 +80,8 @@ def create_delete_by_id_statement(table_name, id):
 
 
 # Check if there is a duplicate username
-def is_duplicate_username(username):
-    sql = create_select_statement(user_table_name, user_fields, {"username": username})
+def exist_duplicate_user_with_field(field_dic):
+    sql = create_select_statement(user_table_name, user_fields, field_dic)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
@@ -112,7 +112,11 @@ def query_users(user):
     with conn.cursor() as cursor:
         try:
             cursor.execute(sql)
-            return cursor.fetchall()
+            users = cursor.fetchall()
+            # If there is no match, return empty dictionary
+            if not users:
+                return dict()
+            return users
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)
             return None

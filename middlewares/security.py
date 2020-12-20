@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 
-white_list = {"/api/login", "/api/registration"}
+white_list = {"/api/login", "/api/registration", "/api/g_login", "/api/g_authorize"}
 
 jwt_secret = os.environ['JWT_SECRET']
 jwt_algo = os.environ['JWT_ALGO']
