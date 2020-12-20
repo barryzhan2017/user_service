@@ -153,7 +153,11 @@ def g_authorize():
                                                ["username", "email", "status", "role", "created_date"])
         if not created_user:
             return create_error_res("Internal Server Error", 500)
-    user = user_access.query_users({"email": email})
+    users = user_access.query_users({"email": email})
+    # Query the user with that email address
+    if not users or len(users) != 1:
+        return create_error_res("Internal Server Error", 500)
+    user = users[0]
     # Create a token and access the main page by the token
     token = security.create_token(user)
     fernet = Fernet(secret)
