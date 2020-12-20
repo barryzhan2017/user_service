@@ -148,7 +148,7 @@ def g_authorize():
         if not created_user:
             return create_error_res("Internal Server Error", 500)
     user = user_access.query_users({"email": email})
-    print(user)
+    logger.info("user_info" + user)
     return redirect("/api/login")
 
 
