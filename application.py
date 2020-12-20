@@ -148,7 +148,7 @@ def g_authorize():
     # If there does not exist a duplicate user with such email, create a new one
     if not user_access.exist_duplicate_user_with_field({"email": email}):
         created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"},
-                                               {"username", "email", "status", "role", "created_date"})
+                                               ["username", "email", "status", "role", "created_date"])
         if not created_user:
             return create_error_res("user is none so Internal Server Error and email is" + email, 500)
     user = user_access.query_users({"email": email})
