@@ -146,7 +146,7 @@ def g_authorize():
     if not user_access.exist_duplicate_user_with_field({"email": email}):
         created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"})
         if not created_user:
-            return create_error_res("Internal Server Error", 500)
+            return create_error_res("user is none so Internal Server Error and email is" + email, 500)
     user = user_access.query_users({"email": email})
     logger.info("user_info" + user)
     return redirect("/api/login")
