@@ -113,9 +113,6 @@ def query_users(user):
         try:
             cursor.execute(sql)
             users = cursor.fetchall()
-            # If there is no match, return empty dictionary
-            if not users:
-                return dict()
             return users
         except (pymysql.Error, pymysql.Warning) as e:
             logger.error(e)

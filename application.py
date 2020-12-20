@@ -98,6 +98,12 @@ def notify(response):
     notification.notify(inputs, response)
     return response
 
+# # Verify if the token is valid
+# @app.route('/api/verify_token', methods=['POST'])
+# def verify_token():
+#     inputs = log_and_extract_input()
+#     res = security.authorize(inputs, {"support", "ip"})
+#     return create_res(res[0], res[1])
 
 # Registration endpoint for users. If successful, send sns to ask for email verification
 @app.route('/api/registration', methods=['POST'])
@@ -170,7 +176,7 @@ def query_users():
     inputs = log_and_extract_input()
     user = inputs["query_params"]
     users = user_access.query_users(user)
-    if not users:
+    if users is None:
         return create_error_res("Internal Server Error", 500)
     else:
         return create_res({"data": users, "message": "Query successfully"}, 200)
@@ -180,7 +186,7 @@ def query_users():
 @app.route('/api/users/<user_id>', methods=['GET'])
 def query_user_by_id(user_id):
     user = user_access.query_user_by_id(user_id)
-    if not user:
+    if user is None:
         return create_error_res("Internal Server Error", 500)
     else:
         return create_res({"data": user, "message": "Query successfully"}, 200)
