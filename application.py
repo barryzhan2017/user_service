@@ -12,7 +12,7 @@ from authlib.integrations.base_client.errors import OAuthError
 from cryptography.fernet import Fernet
 
 application = Flask(__name__)
-catalog_url = "http://signaldevv20-env.eba-2ibxmk54.us-east-2.elasticbeanstalk.com/"
+catalog_url = os.environ["CATALOG_URL"]
 app = application
 logger = logging.getLogger()
 app.secret_key = os.urandom(24)
@@ -20,8 +20,8 @@ oauth = OAuth(app)
 secret = os.environ['TOKEN_SECRET'].encode('utf-8')
 google = oauth.register(
     name="google",
-    client_id="711339593947-sk8i9o5idime6plukhelrvfqs85vh57p.apps.googleusercontent.com",
-    client_secret="vJ3nNv_KrZAITd3rNlQ4DIxC",
+    client_id=os.environ["OAUTH2_CLIENT_ID"],
+    client_secret=os.environ["OAUTH2_CLIENT_SECRET"],
     access_token_url="https://accounts.google.com/o/oauth2/token",
     access_token_params=None,
     authorize_url="https://accounts.google.com/o/oauth2/auth",
