@@ -9,6 +9,7 @@ import database_access.user_access as user_access
 import tools.address_verification as address_verification
 from authlib.integrations.flask_client import OAuth
 from authlib.integrations.base_client.errors import OAuthError
+from cryptography.fernet import Fernet
 
 application = Flask(__name__)
 catalog_url = "http://signaldevv20-env.eba-2ibxmk54.us-east-2.elasticbeanstalk.com/"
@@ -16,6 +17,7 @@ app = application
 logger = logging.getLogger()
 app.secret_key = os.urandom(24)
 oauth = OAuth(app)
+secret = os.environ['TOKEN_SECRET'].encode('utf-8')
 google = oauth.register(
     name="google",
     client_id="711339593947-sk8i9o5idime6plukhelrvfqs85vh57p.apps.googleusercontent.com",
@@ -117,7 +119,7 @@ def login():
     if sha256_crypt.verify(user["password"], queried_user["password"]):
         if queried_user["status"] != "active":
             return create_error_res("User is not activated via email", 400)
-        return create_res({"token": security.create_token(queried_user),
+        return redirect({"token": security.create_token(queried_user),
                            "message": "Login successfully"}, 200)
     else:
         return create_error_res("Password is incorrect", 400)
@@ -150,9 +152,12 @@ def g_authorize():
         created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"},
                                                ["username", "email", "status", "role", "created_date"])
         if not created_user:
-            return create_error_res("user is none so Internal Server Error and email is" + email, 500)
+            return create_error_res("Internal Server Error", 500)
     user = user_access.query_users({"email": email})
-    return redirect("/api/login")
+    # Create a token and access the main page by the token
+    token = security.create_token(user)
+    fernet = Fernet(secret)
+    return redirect(catalog_url + "?token=" + fernet.encrypt(token.encode("utf-8")).decode("utf-8"))
 
 
 # Endpoint to query users, we can pass query string in path
