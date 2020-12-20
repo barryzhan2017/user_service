@@ -26,7 +26,7 @@ required_user_fields = ["username", "password", "email", "phone",
 def create_insert_statement(table_name, parameters, data):
     if data is None or len(data) == 0:
         return ""
-    sql = """INSERT INTO {} ({}) """.format(table_name, ', '.join(user_fields))
+    sql = """INSERT INTO {} ({}) """.format(table_name, ', '.join(parameters))
     sql += """ VALUES ("""
     for parameter in parameters:
         # Suppose every parameter is a string
@@ -140,8 +140,10 @@ def query_user_by_id(id):
 
 
 # Create a new user and its password is hashed, return the new user with id if created successfully
-def create_user(user):
-    sql = create_insert_statement(user_table_name, user_fields, user)
+def create_user(user, parameters=None):
+    if parameters is None:
+        parameters = user_fields
+    sql = create_insert_statement(user_table_name, parameters, user)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:

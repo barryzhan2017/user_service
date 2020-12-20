@@ -28,6 +28,7 @@ google = oauth.register(
     client_kwargs={"scope": "openid profile email"}
 )
 
+
 # Get each field from request
 def log_and_extract_input(path_params=None):
     path = request.path
@@ -121,12 +122,14 @@ def login():
     else:
         return create_error_res("Password is incorrect", 400)
 
+
 # Login endpoint for goolge users. If successful, it will redirect to g_authorize for further user information.
 @app.route("/api/g_login", methods=['GET'])
 def g_login():
     google = oauth.create_client("google")  # create the google oauth client
     redirect_uri = url_for("g_authorize", _external=True)
     return google.authorize_redirect(redirect_uri)
+
 
 # Access the user_info and if that email does not exist, we will create a new user based on that email.
 @app.route("/api/g_authorize")
@@ -144,11 +147,11 @@ def g_authorize():
     email = user_info["email"]
     # If there does not exist a duplicate user with such email, create a new one
     if not user_access.exist_duplicate_user_with_field({"email": email}):
-        created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"})
+        created_user = user_access.create_user({"username": email, "email": email, "status": "active", "role": "ip"},
+                                               {"username", "email", "status", "role", "created_date"})
         if not created_user:
             return create_error_res("user is none so Internal Server Error and email is" + email, 500)
     user = user_access.query_users({"email": email})
-    logger.info("user_info" + user)
     return redirect("/api/login")
 
 
