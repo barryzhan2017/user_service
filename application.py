@@ -136,8 +136,7 @@ def login():
 def g_login():
     google = oauth.create_client("google")  # create the google oauth client
     redirect_uri = url_for("g_authorize", _external=True)
-    print(redirect_uri)
-    return google.authorize_redirect("http://user-service.eba-txbhbpef.us-east-2.elasticbeanstalk.com/api/g_authorize")
+    return google.authorize_redirect(redirect_uri)
 
 
 # Access the user_info and if that email does not exist, we will create a new user based on that email.
