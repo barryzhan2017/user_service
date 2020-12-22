@@ -125,7 +125,7 @@ def login():
     if sha256_crypt.verify(user["password"], queried_user["password"]):
         if queried_user["status"] != "active":
             return create_error_res("User is not activated via email", 400)
-        return redirect({"token": security.create_token(queried_user),
+        return create_res({"token": security.create_token(queried_user),
                            "message": "Login successfully"}, 200)
     else:
         return create_error_res("Password is incorrect", 400)
