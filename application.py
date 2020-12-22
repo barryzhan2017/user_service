@@ -136,7 +136,8 @@ def login():
 def g_login():
     google = oauth.create_client("google")  # create the google oauth client
     redirect_uri = url_for("g_authorize", _external=True)
-    return google.authorize_redirect(redirect_uri)
+    print(redirect_uri)
+    return google.authorize_redirect("https://sksiul5al0.execute-api.us-east-2.amazonaws.com/test/api/g_authorize")
 
 
 # Access the user_info and if that email does not exist, we will create a new user based on that email.
