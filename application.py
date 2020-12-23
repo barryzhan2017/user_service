@@ -204,6 +204,8 @@ def create_user():
         return create_error_res("Invalid data", 400)
     if user_access.exist_duplicate_user_with_field({"username": user["username"]}):
         return create_error_res("Username is duplicate", 400)
+    if user_access.exist_duplicate_user_with_field({"email": user["email"]}):
+        return create_error_res("Email is duplicate", 400)
     # Check if the address is valid
     if "address" in user and not address_verification.verify(user["address"]):
         return create_error_res("Address is invalid", 400)
