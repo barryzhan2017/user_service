@@ -1,6 +1,8 @@
 # user_service
-It's a microservice for users's CRUD. Main technology stack includes Python Flask and AWS RDS. The deployment will take place in AWS Elastic Beanstalk 
-and CI/CD is done by AWS Code Pipeline.
+It's a microservice for users's CRUD, JWT authorization, email registration via SNS and SES, 
+OAuth2 via Google Cloud and address verification via SmartyStreets.com.
+
+
 
 Additional features like JWT authentication and registration via email confirmation is complete.
 * JWT can also encrypt our user information for further authorization 
