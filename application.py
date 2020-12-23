@@ -225,6 +225,8 @@ def update_users_by_id(id):
         return create_error_res("Invalid data", 400)
     if "username" in user and user_access.exist_duplicate_user_with_field({"username": user["username"]}):
         return create_error_res("Username is duplicate", 400)
+    if "address" in user and not address_verification.verify(user["address"]):
+        return create_error_res("Address is invalid", 400)
     updated_user = user_access.update_users_by_id(user, id)
     if not updated_user:
         return create_error_res("Internal Server Error", 500)
