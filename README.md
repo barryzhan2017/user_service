@@ -2,6 +2,7 @@
 It's a microservice for users's CRUD, JWT authorization, email registration via SNS and SES, 
 OAuth2 via Google Cloud and address verification via SmartyStreets.com.
 
+![architecture.png](https://github.com/barryzhan2017/user_service/blob/main/architecture.png?raw=true)
 
 
 Additional features like JWT authentication and registration via email confirmation is complete.
