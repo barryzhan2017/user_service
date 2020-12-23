@@ -20,7 +20,7 @@ request to this service. Main problems I met:
     (although local can access sns).
   * We need request removal from sandbox of our sns account to send emails to unlimited address.
   Under sending statistics, click edit account details to achieve that.
-  * Use OFFSET and LIMIT to implement pagination sql statement
-  * Seperate database access with controller logic to make code more reusable
+* Use OFFSET and LIMIT to implement pagination sql statement
+* Seperate database access with controller logic to make code more reusable
     
 
