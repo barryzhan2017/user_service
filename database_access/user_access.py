@@ -15,12 +15,11 @@ c_info = {
 }
 
 user_table_name = "signals.users"
-# date should be the last one
+# Date should be the last one
 user_fields = ["username", "password", "email", "phone",
                "slack_id", "role", "status", "address", "created_date"]
 required_user_fields = ["username", "password", "email", "phone",
                         "slack_id", "role", "status", "address"]
-
 
 # Create a sql statement to insert data according to parameters into a table by its table_name
 def create_insert_statement(table_name, parameters, data):
@@ -63,11 +62,17 @@ def create_select_statement(table_name, parameters, data):
     sql = """SELECT * FROM {} """.format(table_name)
     if data is None or len(data) == 0:
         return sql
-    sql += "WHERE "
+    if ("limit" not in data and "offset" not in data) or ("limit" in data and "offset" in data and len(data) > 2):
+        sql += "WHERE "
     for parameter in parameters:
         if parameter in data:
             sql += """ {} = "{}" AND """.format(parameter, data[parameter])
-    sql = sql[:-4]
+    if ("limit" not in data and "offset" not in data) or (
+            "limit" in data and "offset" in data and len(data) > 2):
+        sql = sql[:-4]
+    if "limit" in data and "offset" in data:
+        sql += " LIMIT {} OFFSET {}".format(int(data["limit"]), int(data["limit"])*int(data["offset"]))
+    print(sql)
     return sql
 
 
@@ -97,6 +102,7 @@ def exist_duplicate_user_with_field(field_dic):
             conn.close()
     return False
 
+
 # Check if all fields required are in user
 def required_field_exist(user):
     for field in required_user_fields:
@@ -108,6 +114,22 @@ def required_field_exist(user):
 # Endpoint to query users from a given user dictionary
 def query_users(user):
     sql = create_select_statement(user_table_name, user_fields, user)
+    conn = pymysql.connect(**c_info)
+    with conn.cursor() as cursor:
+        try:
+            cursor.execute(sql)
+            users = cursor.fetchall()
+            return users
+        except (pymysql.Error, pymysql.Warning) as e:
+            logger.error(e)
+            return None
+        finally:
+            conn.close()
+
+
+# Endpoint to query users limit and page
+def query_users_by_page(offset, page):
+    sql = select_by_pagination.format(offset, page*offset)
     conn = pymysql.connect(**c_info)
     with conn.cursor() as cursor:
         try:
