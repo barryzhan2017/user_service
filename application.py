@@ -77,7 +77,7 @@ def create_res(json_msg, code):
 def authorization():
     inputs = log_and_extract_input()
     # To enable user registration, the permission opens to any role.
-    res = security.authorize(inputs, {"support", "ip"})
+    res = security.authorize(inputs, {"support"})
     # Pass through while_list without any action
     if not res:
         return None
