@@ -76,8 +76,11 @@ def create_res(json_msg, code):
 @app.before_request
 def authorization():
     inputs = log_and_extract_input()
-    # To enable user registration, the permission opens to any role.
-    res = security.authorize(inputs, {"support"})
+    # To enable user registration, the permission of update opens to any role.
+    if inputs["path"].startswith("/api/users") and inputs["method"] == "PUT":
+        res = security.authorize(inputs, {"support", "ip"})
+    else:
+        res = security.authorize(inputs, {"support"})
     # Pass through while_list without any action
     if not res:
         return None
